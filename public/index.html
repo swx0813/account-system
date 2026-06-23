@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>账号系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #fff;
+            min-height: 100vh;
+        }
+        .card {
+            backdrop-filter: blur(10px);
+            background: rgba(255, 255, 255, 0.95);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        .input-focus:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.3);
+        }
+        .btn-hover:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        }
+        .btn-active:active {
+            transform: translateY(0);
+        }
+        .fade-in {
+            animation: fadeIn 0.3s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .slide-in {
+            animation: slideIn 0.4s ease-out;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .search-box {
+            position: fixed;
+            top: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 450px;
+            z-index: 100;
+            display: flex;
+            gap: 10px;
+        }
+        .search-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #ddd;
+            border-radius: 25px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        .search-input:focus {
+            border-color: #007bff;
+        }
+        .search-btn {
+            padding: 12px 20px;
+            border: none;
+            background: #007bff;
+            color: #fff;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 14px;
+            white-space: nowrap;
+        }
+        .search-btn:hover {
+            background: #0069d9;
+        }
+        .search-result {
+            position: absolute;
+            top: 55px;
+            left: 0;
+            right: 0;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+            max-height: 300px;
+            overflow-y: auto;
+            display: none;
+        }
+        .search-result.show {
+            display: block;
+        }
+        .search-item {
+            padding: 12px 16px;
+            border-bottom: 1px solid #f1f1f1;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .search-item:hover {
+            background: #f8f9fa;
+        }
+        .search-item:last-child {
+            border-bottom: none;
+        }
+        .add-friend-btn {
+            padding: 4px 10px;
+            background: #28a745;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .add-friend-btn:hover {
+            background: #218838;
+        }
+        .add-friend-btn:disabled {
+            background: #999;
+            cursor: not-allowed;
+        }
+        .search-no-result {
+            padding: 12px 16px;
+            color: #999;
+            text-align: center;
+        }
+
+        .friend-list-box {
+            width: 90%;
+            max-width: 450px;
+            margin: 20px auto;
+            padding: 20px;
+            border-radius: 10px;
+            background: #fff;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        .apply-box {
+            border: 1px solid #ffc107;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 15px;
+            background: #fffbeb;
+        }
+        .apply-item {
+            padding: 6px 0;
+            border-bottom: 1px dashed #ffeeba;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+        }
+        .apply-item:last-child {
+            border-bottom: none;
+        }
+        .apply-btn {
+            padding: 3px 8px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin: 0 3px;
+        }
+        .agree-apply {
+            background: #28a745;
+            color: #fff;
+        }
+        .agree-apply:hover {
+            background: #218838;
+        }
+        .refuse-apply {
+            background: #999;
+            color: #fff;
+        }
+        .refuse-apply:hover {
+            background: #777;
+        }
+        .friend-item {
+            padding: 8px 0;
+            border-bottom: 1px solid #f1f1f1;
+            font-size: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .friend-item:last-child {
+            border-bottom: none;
+        }
+        .del-friend-btn {
+            padding: 3px 8px;
+            background: #dc3545;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .del-friend-btn:hover {
+            background: #c82333;
+        }
+
+        @media (max-width: 480px) {
+            .card {
+                margin: 20px auto;
+                padding: 15px;
+            }
+            .friend-list-box {
+                margin: 15px auto;
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center p-4">
+    <div class="search-box">
+        <input type="text" class="search-input" id="searchInput" placeholder="搜索用户" onkeydown="if(event.keyCode===13){searchUsers();}">
+        <button class="search-btn" id="searchBtn" onclick="searchUsers()">搜索</button>
+        <div class="search-result" id="searchResult"></div>
+    </div>
+
+    <div class="card rounded-2xl p-8 w-full max-w-md fade-in">
+        <div class="text-center mb-8">
+            <div class="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                </svg>
+            </div>
+            <h1 class="text-2xl font-bold text-gray-800">账号系统</h1>
+            <p class="text-gray-500 mt-2">欢迎使用，安全可靠，请勿发布违规内容</p>
+        </div>
+
+        <div id="loginForm" class="slide-in">
+            <div class="space-y-5">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">用户名</label>
+                    <input type="text" id="loginUsername" class="w-full px-4 py-3 border border-gray-200 rounded-xl input-focus transition-all" placeholder="请输入用户名">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">密码</label>
+                    <input type="password" id="loginPassword" class="w-full px-4 py-3 border border-gray-200 rounded-xl input-focus transition-all" placeholder="请输入密码">
+                </div>
+                <button onclick="handleLogin()" class="w-full py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl font-semibold btn-hover btn-active transition-all">
+                    登 录
+                </button>
+                <p class="text-center text-gray-500 text-sm">
+                    还没有账号？ <a onclick="showRegister()" class="text-indigo-600 hover:text-indigo-700 font-medium cursor-pointer">立即注册</a>
+                </p>
+            </div>
+        </div>
+
+        <div id="registerForm" class="hidden slide-in">
+            <div class="space-y-5">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">用户名</label>
+                    <input type="text" id="regUsername" class="w-full px-4 py-3 border border-gray-200 rounded-xl input-focus transition-all" placeholder="请输入用户名" oninput="updateCharCount(this)">
+                    <div class="text-right text-xs text-gray-400 mt-1 flex items-center justify-end">
+                        <span id="charCount">0/10</span>
+                        <img src="https://i.ibb.co/Pzf6yhSM/image.png" alt="疑问图标" class="w-4 h-4 ml-1 cursor-pointer" onclick="showCharTip()">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">邮箱</label>
+                    <input type="email" id="regEmail" class="w-full px-4 py-3 border border-gray-200 rounded-xl input-focus transition-all" placeholder="请输入邮箱">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">密码</label>
+                    <input type="password" id="regPassword" class="w-full px-4 py-3 border border-gray-200 rounded-xl input-focus transition-all" placeholder="请输入密码">
+                </div>
+                <button onclick="handleRegister()" class="w-full py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl font-semibold btn-hover btn-active transition-all">
+                    注 册
+                </button>
+                <p class="text-center text-gray-500 text-sm">
+                    已有账号？ <a onclick="showLogin()" class="text-indigo-600 hover:text-indigo-700 font-medium cursor-pointer">立即登录</a>
+                </p>
+            </div>
+        </div>
+
+        <div id="userInfo" class="hidden slide-in">
+            <div class="text-center space-y-6">
+                <div class="w-20 h-20 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center mx-auto">
+                    <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                    </svg>
+                </div>
+                <div>
+                    <h2 class="text-xl font-bold text-gray-800" id="displayUsername"></h2>
+                    <p class="text-gray-500 mt-1" id="displayEmail"></p>
+                    <p class="text-gray-400 text-sm mt-1" id="displayCreatedAt"></p>
+                </div>
+                <div class="bg-gray-50 rounded-xl p-4 text-left space-y-2">
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-500">用户ID</span>
+                        <span class="text-gray-700 font-mono text-xs" id="displayId"></span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-500">登录状态</span>
+                        <span class="text-green-500 font-medium">已登录</span>
+                    </div>
+                </div>
+                <div class="space-y-3">
+                    <button onclick="showFriendList()" class="w-full py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl font-semibold btn-hover btn-active transition-all">
+                        查看好友列表
+                    </button>
+                    <button onclick="handleLogout()" class="w-full py-3 text-white rounded-xl font-semibold btn-active transition-all" style="background-color: #FF0000;">
+                        退出登录
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="message" class="mt-4 p-3 rounded-xl text-sm text-center hidden"></div>
+    </div>
+
+    <div id="friendListBox" class="friend-list-box hidden">
+        <h3 class="text-lg font-bold text-center mb-4">我的好友列表</h3>
+        <div class="apply-box" id="applyBox">
+            <p class="font-bold mb-2">待处理好友申请</p>
+            <div id="applyList"></div>
+        </div>
+        <div id="friendList"></div>
+        <button onclick="backToUserInfo()" class="w-full py-3 mt-4 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 btn-active transition-all">
+            返回
+        </button>
+    </div>
+
+    <script>
+        let currentUser = null;
+
+        async function apiCall(action, params) {
+            try {
+                const response = await fetch('/api/supabase', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action, ...params })
+                });
+                return response.json();
+            } catch (error) {
+                console.error('API调用失败:', error);
+                return { error: error.message };
+            }
+        }
+
+        function showMessage(text, type = 'success') {
+            const msg = document.getElementById('message');
+            msg.textContent = text;
+            msg.className = `mt-4 p-3 rounded-xl text-sm text-center fade-in ${type === 'error' ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`;
+            msg.classList.remove('hidden');
+            setTimeout(() => msg.classList.add('hidden'), 3000);
+        }
+
+        function showLogin() {
+            document.getElementById('loginForm').classList.remove('hidden');
+            document.getElementById('registerForm').classList.add('hidden');
+            document.getElementById('userInfo').classList.add('hidden');
+            document.getElementById('friendListBox').classList.add('hidden');
+        }
+
+        function showRegister() {
+            document.getElementById('loginForm').classList.add('hidden');
+            document.getElementById('registerForm').classList.remove('hidden');
+            document.getElementById('userInfo').classList.add('hidden');
+            document.getElementById('friendListBox').classList.add('hidden');
+        }
+
+        function calculateTokenCount(str) {
+            let chinese = 0;
+            let letter = 0;
+            let symbol = 0;
+
+            for (let i = 0; i < str.length; i++) {
+                const char = str[i];
+                if (/[\u4e00-\u9fa5]/.test(char)) {
+                    chinese++;
+                } else if (/[a-zA-Z]/.test(char)) {
+                    letter++;
+                } else {
+                    symbol++;
+                }
+            }
+
+            const totalTokens = (chinese * 1) + (letter * 0.5) + (symbol * 1);
+            return Math.ceil(totalTokens);
+        }
+
+        function showCharTip() {
+            alert('字符计算逻辑：1个汉字=1字符，1个字母=0.5字符，1个符号=1字符，计算结果向上取整');
+        }
+
+        function updateCharCount(input) {
+            const maxCount = 10;
+            let currentValue = input.value;
+            let currentCount = calculateTokenCount(currentValue);
+
+            while (currentCount > maxCount && currentValue.length > 0) {
+                currentValue = currentValue.slice(0, -1);
+                currentCount = calculateTokenCount(currentValue);
+            }
+
+            if (input.value !== currentValue) {
+                input.value = currentValue;
+                showMessage('已达到输入上限', 'error');
+            }
+
+            const charCountEl = document.getElementById('charCount');
+            if (charCountEl) {
+                charCountEl.textContent = `${currentCount}/${maxCount}`;
+            }
+        }
+
+        function showUserInfo(user) {
+            document.getElementById('loginForm').classList.add('hidden');
+            document.getElementById('registerForm').classList.add('hidden');
+            document.getElementById('userInfo').classList.remove('hidden');
+            document.getElementById('friendListBox').classList.add('hidden');
+            
+            document.getElementById('displayUsername').textContent = user.username;
+            document.getElementById('displayEmail').textContent = user.email;
+            document.getElementById('displayId').textContent = user.id;
+            document.getElementById('displayCreatedAt').textContent = `注册于 ${new Date(user.created_at).toLocaleString('zh-CN')}`;
+        }
+
+        function backToUserInfo() {
+            document.getElementById('userInfo').classList.remove('hidden');
+            document.getElementById('friendListBox').classList.add('hidden');
+        }
+
+        async function handleRegister() {
+            const username = document.getElementById('regUsername').value.trim();
+            const email = document.getElementById('regEmail').value.trim();
+            const password = document.getElementById('regPassword').value.trim();
+
+            if (!username || !email || !password) {
+                showMessage('请填写所有字段', 'error');
+                return;
+            }
+
+            if (password.length < 6) {
+                showMessage('密码至少需要6位', 'error');
+                return;
+            }
+
+            try {
+                const checkResult = await apiCall('search', { keyword: username });
+                if (checkResult.error) throw checkResult.error;
+                
+                const exists = checkResult.data?.find(u => u.username === username);
+                if (exists) {
+                    showMessage('用户名已存在', 'error');
+                    return;
+                }
+
+                const emailCheck = await apiCall('search', { keyword: email });
+                if (emailCheck.error) throw emailCheck.error;
+                
+                const emailExists = emailCheck.data?.find(u => u.email === email);
+                if (emailExists) {
+                    showMessage('该邮箱已被注册', 'error');
+                    return;
+                }
+
+                const result = await apiCall('register', { username, email, password });
+                if (result.error) throw result.error;
+
+                showMessage('注册成功！请登录');
+                document.getElementById('regUsername').value = '';
+                document.getElementById('regEmail').value = '';
+                document.getElementById('regPassword').value = '';
+                showLogin();
+            } catch (err) {
+                console.error('注册失败:', err);
+                showMessage('注册失败，请重试', 'error');
+            }
+        }
+
+        async function handleLogin() {
+            const username = document.getElementById('loginUsername').value.trim();
+            const password = document.getElementById('loginPassword').value.trim();
+
+            if (!username || !password) {
+                showMessage('请填写用户名和密码', 'error');
+                return;
+            }
+
+            try {
+                const result = await apiCall('login', { username, password });
+                if (result.error) throw result.error;
+
+                if (!result.data || result.data.length === 0) {
+                    showMessage('用户名或密码错误', 'error');
+                    return;
+                }
+
+                const user = result.data[0];
+                currentUser = user;
+                localStorage.setItem('loggedInUser', JSON.stringify(user));
+                showMessage('登录成功！');
+                showUserInfo(user);
+            } catch (err) {
+                console.error('登录失败:', err);
+                showMessage('登录失败，请重试', 'error');
+            }
+        }
+
+        function handleLogout() {
+            currentUser = null;
+            localStorage.removeItem('loggedInUser');
+            showMessage('已退出登录');
+            showLogin();
+        }
+
+        async function searchUsers() {
+            const keyword = document.getElementById('searchInput').value.trim();
+            const resultBox = document.getElementById('searchResult');
+            
+            if (!keyword) {
+                resultBox.classList.remove('show');
+                return;
+            }
+
+            try {
+                const result = await apiCall('search', { keyword });
+                if (result.error) throw result.error;
+
+                const data = result.data || [];
+                
+                if (!data || data.length === 0) {
+                    resultBox.innerHTML = '<div class="search-no-result">没有找到用户</div>';
+                    resultBox.classList.add('show');
+                    return;
+                }
+
+                const exactIdMatch = data.filter(u => u.id === keyword);
+                const usernameMatch = data.filter(u => u.username.includes(keyword));
+                const combined = [...exactIdMatch, ...usernameMatch.filter(u => !exactIdMatch.some(e => e.id === u.id))];
+
+                if (combined.length === 0) {
+                    resultBox.innerHTML = '<div class="search-no-result">没有找到用户</div>';
+                } else {
+                    resultBox.innerHTML = combined.map(u => {
+                        const isSelf = currentUser && u.id === currentUser.id;
+                        const isLoggedIn = !!currentUser;
+                        const showBtn = !isSelf;
+                        let btnHtml = '';
+                        if (showBtn) {
+                            if (isLoggedIn) {
+                                btnHtml = `<button class="add-friend-btn" onclick="sendFriendRequest('${u.id}','${u.username}')">添加好友</button>`;
+                            } else {
+                                btnHtml = `<button class="add-friend-btn" disabled onclick="showMessage('请先登录', 'error')">添加好友</button>`;
+                            }
+                        }
+                        return `
+                            <div class="search-item">
+                                <div>
+                                    <div>用户名：${u.username}</div>
+                                    <div style="font-size:12px;color:#666;">ID：${u.id}</div>
+                                </div>
+                                ${btnHtml}
+                            </div>
+                        `;
+                    }).join('');
+                }
+                resultBox.classList.add('show');
+            } catch (err) {
+                console.error('搜索失败:', err);
+                showMessage('搜索失败', 'error');
+            }
+        }
+
+        async function sendFriendRequest(targetUserId, targetUsername) {
+            if (!currentUser) {
+                showMessage('请先登录', 'error');
+                return;
+            }
+
+            if (currentUser.id === targetUserId) {
+                showMessage('不能添加自己为好友', 'error');
+                return;
+            }
+
+            try {
+                const friendResult = await apiCall('getFriends', { userId: currentUser.id });
+                if (friendResult.error) throw friendResult.error;
+                
+                const existingFriend = (friendResult.data || []).some(f => 
+                    (f.user_id === currentUser.id && f.friend_id === targetUserId) ||
+                    (f.user_id === targetUserId && f.friend_id === currentUser.id)
+                );
+
+                if (existingFriend) {
+                    showMessage('已经是好友', 'error');
+                    return;
+                }
+
+                const requestResult = await apiCall('getFriendRequests', { userId: targetUserId });
+                if (requestResult.error) throw requestResult.error;
+                
+                const existingRequest = (requestResult.data || []).some(r => 
+                    r.from_user_id === currentUser.id && r.status === 'pending'
+                );
+
+                if (existingRequest) {
+                    showMessage('已经发送过好友申请', 'error');
+                    return;
+                }
+
+                const result = await apiCall('sendFriendRequest', {
+                    from_user_id: currentUser.id,
+                    from_username: currentUser.username,
+                    to_user_id: targetUserId,
+                    to_username: targetUsername,
+                    status: 'pending'
+                });
+
+                if (result.error) throw result.error;
+
+                showMessage('好友申请已发送');
+                document.getElementById('searchResult').classList.remove('show');
+                document.getElementById('searchInput').value = '';
+            } catch (err) {
+                console.error('发送好友申请失败:', err);
+                showMessage('发送好友申请失败', 'error');
+            }
+        }
+
+        async function showFriendList() {
+            if (!currentUser) {
+                showMessage('请先登录', 'error');
+                return;
+            }
+
+            document.getElementById('userInfo').classList.add('hidden');
+            document.getElementById('friendListBox').classList.remove('hidden');
+
+            await loadFriendRequests();
+            await loadFriendList();
+        }
+
+        async function loadFriendRequests() {
+            if (!currentUser) return;
+
+            const applyList = document.getElementById('applyList');
+            applyList.innerHTML = '<div style="color:#999;padding:4px;">加载中...</div>';
+
+            try {
+                const result = await apiCall('getFriendRequests', { userId: currentUser.id });
+                if (result.error) throw result.error;
+
+                const data = result.data || [];
+
+                if (!data || data.length === 0) {
+                    applyList.innerHTML = '<div style="color:#999;padding:4px;">暂无待处理申请</div>';
+                } else {
+                    applyList.innerHTML = data.map(item => `
+                        <div class="apply-item">
+                            <span>${item.from_username}</span>
+                            <div>
+                                <button class="apply-btn agree-apply" onclick="acceptFriendRequest('${item.id}')">同意</button>
+                                <button class="apply-btn refuse-apply" onclick="rejectFriendRequest('${item.id}')">拒绝</button>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            } catch (err) {
+                console.error('加载好友申请失败:', err);
+                applyList.innerHTML = '<div style="color:red;padding:4px;">加载失败</div>';
+            }
+        }
+
+        async function loadFriendList() {
+            if (!currentUser) return;
+
+            const friendList = document.getElementById('friendList');
+            friendList.innerHTML = '<div style="color:#999;padding:8px;">加载中...</div>';
+
+            try {
+                const result = await apiCall('getFriends', { userId: currentUser.id });
+                if (result.error) throw result.error;
+
+                const allData = result.data || [];
+                
+                const uniqueFriends = [];
+                const seenIds = new Set();
+                
+                allData.forEach(item => {
+                    const friendId = item.user_id === currentUser.id ? item.friend_id : item.user_id;
+                    if (!seenIds.has(friendId)) {
+                        seenIds.add(friendId);
+                        uniqueFriends.push(item);
+                    }
+                });
+
+                if (!uniqueFriends || uniqueFriends.length === 0) {
+                    friendList.innerHTML = '<div style="color:#999;padding:8px;">暂无好友</div>';
+                } else {
+                    friendList.innerHTML = uniqueFriends.map(item => {
+                        const friendId = item.user_id === currentUser.id ? item.friend_id : item.user_id;
+                        const friendName = item.user_id === currentUser.id ? item.friend_username : item.user_username;
+                        return `
+                            <div class="friend-item">
+                                <span>${friendName}</span>
+                                <button class="del-friend-btn" onclick="deleteFriend('${friendId}')">删除好友</button>
+                            </div>
+                        `;
+                    }).join('');
+                }
+            } catch (err) {
+                console.error('加载好友列表失败:', err);
+                friendList.innerHTML = '<div style="color:red;padding:8px;">加载失败</div>';
+            }
+        }
+
+        async function acceptFriendRequest(requestId) {
+            if (!currentUser) return;
+
+            try {
+                const requests = await apiCall('getFriendRequests', { userId: currentUser.id });
+                if (requests.error) throw requests.error;
+                
+                const request = (requests.data || []).find(r => r.id === requestId);
+                
+                if (!request) {
+                    showMessage('申请不存在', 'error');
+                    return;
+                }
+
+                const result = await apiCall('acceptFriend', {
+                    requestId,
+                    friendData1: {
+                        user_id: currentUser.id,
+                        user_username: currentUser.username,
+                        friend_id: request.from_user_id,
+                        friend_username: request.from_username
+                    },
+                    friendData2: {
+                        user_id: request.from_user_id,
+                        user_username: request.from_username,
+                        friend_id: currentUser.id,
+                        friend_username: currentUser.username
+                    }
+                });
+
+                if (result.error) throw result.error;
+
+                showMessage('已同意好友申请');
+                await loadFriendRequests();
+                await loadFriendList();
+            } catch (err) {
+                console.error('同意好友申请失败:', err);
+                showMessage('同意好友申请失败', 'error');
+            }
+        }
+
+        async function rejectFriendRequest(requestId) {
+            if (!currentUser) return;
+
+            try {
+                const result = await apiCall('rejectFriend', { requestId });
+                if (result.error) throw result.error;
+
+                showMessage('已拒绝好友申请');
+                await loadFriendRequests();
+            } catch (err) {
+                console.error('拒绝好友申请失败:', err);
+                showMessage('拒绝好友申请失败', 'error');
+            }
+        }
+
+        async function deleteFriend(friendId) {
+            if (!currentUser) return;
+
+            try {
+                const result = await apiCall('deleteFriend', { userId: currentUser.id, friendId });
+                if (result.error) throw result.error;
+
+                showMessage('已删除好友');
+                await loadFriendList();
+            } catch (err) {
+                console.error('删除好友失败:', err);
+                showMessage('删除好友失败', 'error');
+            }
+        }
+
+        function checkLoginStatus() {
+            const storedUser = localStorage.getItem('loggedInUser');
+            if (storedUser) {
+                try {
+                    const user = JSON.parse(storedUser);
+                    currentUser = user;
+                    showUserInfo(user);
+                } catch {
+                    localStorage.removeItem('loggedInUser');
+                    showLogin();
+                }
+            } else {
+                showLogin();
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', checkLoginStatus);
+
+        document.addEventListener('click', function(e) {
+            const searchBox = document.querySelector('.search-box');
+            const searchResult = document.getElementById('searchResult');
+            if (!searchBox.contains(e.target)) {
+                searchResult.classList.remove('show');
+            }
+        });
+    </script>
+</body>
+</html>
