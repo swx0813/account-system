@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>账号系统</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
@@ -42,6 +43,7 @@
             to { opacity: 1; transform: translateX(0); }
         }
 
+        /* 搜索框样式 */
         .search-box {
             position: fixed;
             top: 15px;
@@ -130,6 +132,7 @@
             text-align: center;
         }
 
+        /* 好友列表样式 */
         .friend-list-box {
             width: 90%;
             max-width: 450px;
@@ -203,6 +206,7 @@
             background: #c82333;
         }
 
+        /* 移动端适配 */
         @media (max-width: 480px) {
             .card {
                 margin: 20px auto;
@@ -216,6 +220,7 @@
     </style>
 </head>
 <body class="flex items-center justify-center p-4">
+    <!-- 搜索框 -->
     <div class="search-box">
         <input type="text" class="search-input" id="searchInput" placeholder="搜索用户" onkeydown="if(event.keyCode===13){searchUsers();}">
         <button class="search-btn" id="searchBtn" onclick="searchUsers()">搜索</button>
@@ -315,12 +320,15 @@
         <div id="message" class="mt-4 p-3 rounded-xl text-sm text-center hidden"></div>
     </div>
 
+    <!-- 好友列表 -->
     <div id="friendListBox" class="friend-list-box hidden">
         <h3 class="text-lg font-bold text-center mb-4">我的好友列表</h3>
+        <!-- 好友申请框 -->
         <div class="apply-box" id="applyBox">
             <p class="font-bold mb-2">待处理好友申请</p>
             <div id="applyList"></div>
         </div>
+        <!-- 好友列表 -->
         <div id="friendList"></div>
         <button onclick="backToUserInfo()" class="w-full py-3 mt-4 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 btn-active transition-all">
             返回
@@ -328,21 +336,33 @@
     </div>
 
     <script>
+        let client = null;
         let currentUser = null;
 
-        async function apiCall(action, params) {
-            try {
-                const response = await fetch('/api/supabase', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action, ...params })
-                });
-                return response.json();
-            } catch (error) {
-                console.error('API调用失败:', error);
-                return { error: error.message };
+        async function initApp() {
+            const supabaseUrl = 'https://zixbubwmrhaivpulgwti.supabase.co';
+            const supabaseKey = 'sb_publishable_vWWc_cmdVBgORj4lIhpeaQ_vDgvI-l2';
+            
+            if (!window.supabase) {
+                console.log('Waiting for supabase to load...');
+                await new Promise(r => setTimeout(r, 100));
+                return initApp();
             }
+            
+            const { createClient } = window.supabase;
+            
+            if (typeof createClient !== 'function') {
+                console.error('createClient is not a function:', window.supabase);
+                await new Promise(r => setTimeout(r, 100));
+                return initApp();
+            }
+            
+            client = createClient(supabaseUrl, supabaseKey);
+            console.log('Supabase client initialized successfully');
+            checkLoginStatus();
         }
+
+        window.addEventListener('load', initApp);
 
         function showMessage(text, type = 'success') {
             const msg = document.getElementById('message');
@@ -426,9 +446,14 @@
         function backToUserInfo() {
             document.getElementById('userInfo').classList.remove('hidden');
             document.getElementById('friendListBox').classList.add('hidden');
+            unsubscribeRealtime();
         }
 
         async function handleRegister() {
+            if (!client) {
+                showMessage('系统初始化中，请稍候', 'error');
+                return;
+            }
             const username = document.getElementById('regUsername').value.trim();
             const email = document.getElementById('regEmail').value.trim();
             const password = document.getElementById('regPassword').value.trim();
@@ -444,26 +469,46 @@
             }
 
             try {
-                const checkResult = await apiCall('search', { keyword: username });
-                if (checkResult.error) throw checkResult.error;
-                
-                const exists = checkResult.data?.find(u => u.username === username);
-                if (exists) {
+                const { data: exists, error: checkError } = await client
+                    .from('users')
+                    .select('id')
+                    .eq('username', username);
+
+                if (checkError) {
+                    throw checkError;
+                }
+
+                if (exists && exists.length > 0) {
                     showMessage('用户名已存在', 'error');
                     return;
                 }
 
-                const emailCheck = await apiCall('search', { keyword: email });
-                if (emailCheck.error) throw emailCheck.error;
-                
-                const emailExists = emailCheck.data?.find(u => u.email === email);
-                if (emailExists) {
+                const { data: emailExists, error: emailError } = await client
+                    .from('users')
+                    .select('id')
+                    .eq('email', email);
+
+                if (emailError) {
+                    throw emailError;
+                }
+
+                if (emailExists && emailExists.length > 0) {
                     showMessage('该邮箱已被注册', 'error');
                     return;
                 }
 
-                const result = await apiCall('register', { username, email, password });
-                if (result.error) throw result.error;
+                const { error } = await client
+                    .from('users')
+                    .insert([{
+                        id: crypto.randomUUID(),
+                        username,
+                        email,
+                        password
+                    }]);
+
+                if (error) {
+                    throw error;
+                }
 
                 showMessage('注册成功！请登录');
                 document.getElementById('regUsername').value = '';
@@ -477,6 +522,10 @@
         }
 
         async function handleLogin() {
+            if (!client) {
+                showMessage('系统初始化中，请稍候', 'error');
+                return;
+            }
             const username = document.getElementById('loginUsername').value.trim();
             const password = document.getElementById('loginPassword').value.trim();
 
@@ -486,15 +535,22 @@
             }
 
             try {
-                const result = await apiCall('login', { username, password });
-                if (result.error) throw result.error;
+                const { data: users, error } = await client
+                    .from('users')
+                    .select('*')
+                    .eq('username', username)
+                    .eq('password', password);
 
-                if (!result.data || result.data.length === 0) {
+                if (error) {
+                    throw error;
+                }
+
+                if (!users || users.length === 0) {
                     showMessage('用户名或密码错误', 'error');
                     return;
                 }
 
-                const user = result.data[0];
+                const user = users[0];
                 currentUser = user;
                 localStorage.setItem('loggedInUser', JSON.stringify(user));
                 showMessage('登录成功！');
@@ -508,11 +564,17 @@
         function handleLogout() {
             currentUser = null;
             localStorage.removeItem('loggedInUser');
+            unsubscribeRealtime();
             showMessage('已退出登录');
             showLogin();
         }
 
+        // 搜索用户
         async function searchUsers() {
+            if (!client) {
+                showMessage('系统初始化中，请稍候', 'error');
+                return;
+            }
             const keyword = document.getElementById('searchInput').value.trim();
             const resultBox = document.getElementById('searchResult');
             
@@ -522,11 +584,11 @@
             }
 
             try {
-                const result = await apiCall('search', { keyword });
-                if (result.error) throw result.error;
+                const { data } = await client
+                    .from('users')
+                    .select('id, username, email')
+                    .order('created_at', { ascending: false });
 
-                const data = result.data || [];
-                
                 if (!data || data.length === 0) {
                     resultBox.innerHTML = '<div class="search-no-result">没有找到用户</div>';
                     resultBox.classList.add('show');
@@ -570,6 +632,7 @@
             }
         }
 
+        // 发送好友申请
         async function sendFriendRequest(targetUserId, targetUsername) {
             if (!currentUser) {
                 showMessage('请先登录', 'error');
@@ -582,40 +645,53 @@
             }
 
             try {
-                const friendResult = await apiCall('getFriends', { userId: currentUser.id });
-                if (friendResult.error) throw friendResult.error;
+                // 检查是否已经是好友
+                const { data: existingFriend1 } = await client
+                    .from('friends')
+                    .select('id')
+                    .eq('user_id', currentUser.id)
+                    .eq('friend_id', targetUserId);
                 
-                const existingFriend = (friendResult.data || []).some(f => 
-                    (f.user_id === currentUser.id && f.friend_id === targetUserId) ||
-                    (f.user_id === targetUserId && f.friend_id === currentUser.id)
-                );
+                const { data: existingFriend2 } = await client
+                    .from('friends')
+                    .select('id')
+                    .eq('user_id', targetUserId)
+                    .eq('friend_id', currentUser.id);
+                
+                const existingFriend = [...(existingFriend1 || []), ...(existingFriend2 || [])];
 
-                if (existingFriend) {
+                if (existingFriend && existingFriend.length > 0) {
                     showMessage('已经是好友', 'error');
                     return;
                 }
 
-                const requestResult = await apiCall('getFriendRequests', { userId: targetUserId });
-                if (requestResult.error) throw requestResult.error;
-                
-                const existingRequest = (requestResult.data || []).some(r => 
-                    r.from_user_id === currentUser.id && r.status === 'pending'
-                );
+                // 检查是否已经发送过申请
+                const { data: existingRequest } = await client
+                    .from('friend_requests')
+                    .select('id')
+                    .eq('from_user_id', currentUser.id)
+                    .eq('to_user_id', targetUserId)
+                    .eq('status', 'pending');
 
-                if (existingRequest) {
+                if (existingRequest && existingRequest.length > 0) {
                     showMessage('已经发送过好友申请', 'error');
                     return;
                 }
 
-                const result = await apiCall('sendFriendRequest', {
-                    from_user_id: currentUser.id,
-                    from_username: currentUser.username,
-                    to_user_id: targetUserId,
-                    to_username: targetUsername,
-                    status: 'pending'
-                });
+                // 发送好友申请
+                const { error } = await client
+                    .from('friend_requests')
+                    .insert([{
+                        from_user_id: currentUser.id,
+                        from_username: currentUser.username,
+                        to_user_id: targetUserId,
+                        to_username: targetUsername,
+                        status: 'pending'
+                    }]);
 
-                if (result.error) throw result.error;
+                if (error) {
+                    throw error;
+                }
 
                 showMessage('好友申请已发送');
                 document.getElementById('searchResult').classList.remove('show');
@@ -626,6 +702,7 @@
             }
         }
 
+        // 显示好友列表
         async function showFriendList() {
             if (!currentUser) {
                 showMessage('请先登录', 'error');
@@ -635,10 +712,12 @@
             document.getElementById('userInfo').classList.add('hidden');
             document.getElementById('friendListBox').classList.remove('hidden');
 
+            subscribeRealtime();
             await loadFriendRequests();
             await loadFriendList();
         }
 
+        // 加载好友申请
         async function loadFriendRequests() {
             if (!currentUser) return;
 
@@ -646,10 +725,12 @@
             applyList.innerHTML = '<div style="color:#999;padding:4px;">加载中...</div>';
 
             try {
-                const result = await apiCall('getFriendRequests', { userId: currentUser.id });
-                if (result.error) throw result.error;
-
-                const data = result.data || [];
+                const { data } = await client
+                    .from('friend_requests')
+                    .select('*')
+                    .eq('to_user_id', currentUser.id)
+                    .eq('status', 'pending')
+                    .order('created_at', { ascending: false });
 
                 if (!data || data.length === 0) {
                     applyList.innerHTML = '<div style="color:#999;padding:4px;">暂无待处理申请</div>';
@@ -670,6 +751,7 @@
             }
         }
 
+        // 加载好友列表
         async function loadFriendList() {
             if (!currentUser) return;
 
@@ -677,10 +759,19 @@
             friendList.innerHTML = '<div style="color:#999;padding:8px;">加载中...</div>';
 
             try {
-                const result = await apiCall('getFriends', { userId: currentUser.id });
-                if (result.error) throw result.error;
-
-                const allData = result.data || [];
+                const { data: data1 } = await client
+                    .from('friends')
+                    .select('*')
+                    .eq('user_id', currentUser.id)
+                    .order('created_at', { ascending: false });
+                
+                const { data: data2 } = await client
+                    .from('friends')
+                    .select('*')
+                    .eq('friend_id', currentUser.id)
+                    .order('created_at', { ascending: false });
+                
+                const allData = [...(data1 || []), ...(data2 || [])];
                 
                 const uniqueFriends = [];
                 const seenIds = new Set();
@@ -713,37 +804,61 @@
             }
         }
 
+        // 同意好友申请
         async function acceptFriendRequest(requestId) {
             if (!currentUser) return;
 
             try {
-                const requests = await apiCall('getFriendRequests', { userId: currentUser.id });
-                if (requests.error) throw requests.error;
-                
-                const request = (requests.data || []).find(r => r.id === requestId);
-                
+                // 获取申请信息
+                const { data: request } = await client
+                    .from('friend_requests')
+                    .select('*')
+                    .eq('id', requestId)
+                    .single();
+
                 if (!request) {
                     showMessage('申请不存在', 'error');
                     return;
                 }
 
-                const result = await apiCall('acceptFriend', {
-                    requestId,
-                    friendData1: {
+                // 更新申请状态
+                const { error: updateError } = await client
+                    .from('friend_requests')
+                    .update({ status: 'accepted' })
+                    .eq('id', requestId);
+
+                if (updateError) {
+                    throw updateError;
+                }
+
+                // 添加好友关系（双向）
+                const { error: insertError1 } = await client
+                    .from('friends')
+                    .insert([{
                         user_id: currentUser.id,
                         user_username: currentUser.username,
                         friend_id: request.from_user_id,
-                        friend_username: request.from_username
-                    },
-                    friendData2: {
+                        friend_username: request.from_username,
+                        created_at: new Date().toISOString()
+                    }]);
+
+                if (insertError1) {
+                    throw insertError1;
+                }
+
+                const { error: insertError2 } = await client
+                    .from('friends')
+                    .insert([{
                         user_id: request.from_user_id,
                         user_username: request.from_username,
                         friend_id: currentUser.id,
-                        friend_username: currentUser.username
-                    }
-                });
+                        friend_username: currentUser.username,
+                        created_at: new Date().toISOString()
+                    }]);
 
-                if (result.error) throw result.error;
+                if (insertError2) {
+                    throw insertError2;
+                }
 
                 showMessage('已同意好友申请');
                 await loadFriendRequests();
@@ -754,12 +869,19 @@
             }
         }
 
+        // 拒绝好友申请
         async function rejectFriendRequest(requestId) {
             if (!currentUser) return;
 
             try {
-                const result = await apiCall('rejectFriend', { requestId });
-                if (result.error) throw result.error;
+                const { error } = await client
+                    .from('friend_requests')
+                    .update({ status: 'rejected' })
+                    .eq('id', requestId);
+
+                if (error) {
+                    throw error;
+                }
 
                 showMessage('已拒绝好友申请');
                 await loadFriendRequests();
@@ -769,18 +891,62 @@
             }
         }
 
+        // 删除好友
         async function deleteFriend(friendId) {
             if (!currentUser) return;
 
             try {
-                const result = await apiCall('deleteFriend', { userId: currentUser.id, friendId });
-                if (result.error) throw result.error;
+                // 删除双向好友关系
+                const { error: error1 } = await client
+                    .from('friends')
+                    .delete()
+                    .eq('user_id', currentUser.id)
+                    .eq('friend_id', friendId);
+                
+                if (error1) {
+                    throw error1;
+                }
+                
+                const { error } = await client
+                    .from('friends')
+                    .delete()
+                    .eq('user_id', friendId)
+                    .eq('friend_id', currentUser.id);
+
+                if (error) {
+                    throw error;
+                }
 
                 showMessage('已删除好友');
                 await loadFriendList();
             } catch (err) {
                 console.error('删除好友失败:', err);
                 showMessage('删除好友失败', 'error');
+            }
+        }
+
+        let realtimeSubscription = null;
+
+        function subscribeRealtime() {
+            if (!currentUser || realtimeSubscription) return;
+            
+            realtimeSubscription = client
+                .channel('friend_requests')
+                .on('postgres_changes', {
+                    event: '*',
+                    schema: 'public',
+                    table: 'friend_requests',
+                    filter: `to_user_id=eq.${currentUser.id}`
+                }, async () => {
+                    await loadFriendRequests();
+                })
+                .subscribe();
+        }
+
+        function unsubscribeRealtime() {
+            if (realtimeSubscription) {
+                client.removeChannel(realtimeSubscription);
+                realtimeSubscription = null;
             }
         }
 
