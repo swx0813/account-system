@@ -1,0 +1,20 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "夸克浏览器打开",
+            "type": "chrome",
+            "request": "launch",
+            "file": "${file}",
+            "runtimeExecutable": "D:\\Quark\\quark.exe",
+            "runtimeArgs": [
+                "--no-sandbox",
+                "--disable-gpu"
+            ],
+            "sourceMaps": false,
+            "webRoot": "${workspaceFolder}",
+            "preLaunchTask": null
+        }
+    ],
+    "compounds": []
+}
