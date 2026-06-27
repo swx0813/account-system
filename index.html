@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>账号系统</title>
+    <script src="error-monitor.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -228,6 +229,16 @@
     </style>
 </head>
 <body class="flex items-center justify-center p-4 relative">
+    <!-- 报错计数显示（纯文本，非按钮） -->
+    <div id="errorCounter" class="fixed top-4 left-4 bg-gray-100 text-gray-600 px-3 py-1 rounded-lg text-sm font-medium z-50">
+        当前报错：<span id="errorCount">0</span>
+    </div>
+
+    <!-- 警告计数显示（纯文本，非按钮） -->
+    <div id="warningCounter" class="fixed top-14 left-4 bg-gray-100 text-gray-600 px-3 py-1 rounded-lg text-sm font-medium z-50">
+        当前警告：<span id="warningCount">0</span>
+    </div>
+
     <!-- 设置按钮 -->
     <button onclick="showSettings()" class="fixed top-4 right-4 p-2 rounded-full hover:bg-gray-100 transition-colors z-40" title="设置">
         <img src="https://i.ibb.co/bjX7yNKr/image.png" alt="设置" class="w-6 h-6">
@@ -521,6 +532,10 @@
             updateThemeButtons(savedTheme);
         }
 
+        document.addEventListener('DOMContentLoaded', function() {
+            initTheme();
+        });
+
         function showRegister() {
             document.getElementById('loginForm').classList.add('hidden');
             document.getElementById('registerForm').classList.remove('hidden');
@@ -647,33 +662,25 @@
                 if (!input.includes('@')) {
                     const { data: profiles, error: profileError } = await client
                         .from('profiles')
-                        .select('id')
-                        .eq('username', input);
+                        .select('id, email')
+                        .eq('username', input)
+                        .single();
                     
                     if (profileError) {
                         throw profileError;
                     }
                     
-                    if (!profiles || profiles.length === 0) {
+                    if (!profiles) {
                         showMessage('用户名不存在', 'error');
                         return;
                     }
                     
-                    const { data: users, error: userError } = await client
-                        .from('auth.users')
-                        .select('email')
-                        .eq('id', profiles[0].id);
-                    
-                    if (userError) {
-                        throw userError;
-                    }
-                    
-                    if (!users || users.length === 0) {
-                        showMessage('用户不存在', 'error');
+                    if (!profiles.email) {
+                        showMessage('该用户未绑定邮箱', 'error');
                         return;
                     }
                     
-                    email = users[0].email;
+                    email = profiles.email;
                 }
 
                 const { data, error } = await client.auth.signInWithPassword({
@@ -698,7 +705,7 @@
             const username = user.user_metadata?.username || user.email?.split('@')[0] || '用户';
             currentUser = {
                 id: user.id,
-                email: user.email,
+                email: user.email || '',
                 username: username,
                 created_at: user.created_at
             };
@@ -1141,10 +1148,6 @@
                 });
             }
         }
-
-        document.addEventListener('DOMContentLoaded', function() {
-            initTheme();
-        });
 
         document.addEventListener('click', function(e) {
             const searchBox = document.querySelector('.search-box');
