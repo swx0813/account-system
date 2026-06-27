@@ -153,6 +153,12 @@ console.warn = function(...args) {
     });
 };
 
+window.refreshErrorMonitor = function() {
+    flushQueues();
+    updateErrorDisplay();
+    updateWarningDisplay();
+};
+
 document.addEventListener('DOMContentLoaded', function() {
     flushQueues();
 });
