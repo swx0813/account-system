@@ -153,11 +153,35 @@ console.warn = function(...args) {
     });
 };
 
-window.refreshErrorMonitor = function() {
-    flushQueues();
+const originalFetch = window.fetch;
+window.fetch = function(...args) {
+    return originalFetch.apply(this, args).then(response => {
+        if (!response.ok) {
+            addError({
+                type: '网络请求错误',
+                message: `HTTP ${response.status}: ${response.statusText}`,
+                source: args[0]?.url || args[0] || '',
+                stack: '',
+                time: new Date().toLocaleString('zh-CN')
+            });
+        }
+        return response;
+    }).catch(error => {
+        addError({
+            type: '网络请求异常',
+            message: error.message || String(error),
+            source: args[0]?.url || args[0] || '',
+            stack: error.stack || '',
+            time: new Date().toLocaleString('zh-CN')
+        });
+        throw error;
+    });
+};
+
+setInterval(function() {
     updateErrorDisplay();
     updateWarningDisplay();
-};
+}, 1000);
 
 document.addEventListener('DOMContentLoaded', function() {
     flushQueues();
