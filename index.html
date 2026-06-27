@@ -389,7 +389,7 @@
 
         async function initApp() {
             const supabaseUrl = 'https://zixbubwmrhaivpulgwti.supabase.co';
-            const supabaseKey = 'sb_publishable_vWWc_cmdVBgORj4lIhpeaQ_vDgvI-l2';
+            const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InppeGJ1YndtcmhhaXZwdWxnd3RpIiwiYWlkIjoiYm5iM240c2VwY2Y0dnZqbWIyYnZ0IiwiaWF0IjoxNzE3NjU2NjI0LCJleHAiOjIwMzMyMzI2MjR9._vWWc_cmdVBgORj4lIhpeaQ_vDgvI-l2';
             
             if (!window.supabase) {
                 console.log('Waiting for supabase to load...');
@@ -559,18 +559,6 @@
             }
         }
 
-        function showUserInfo(user) {
-            document.getElementById('loginForm').classList.add('hidden');
-            document.getElementById('registerForm').classList.add('hidden');
-            document.getElementById('userInfo').classList.remove('hidden');
-            document.getElementById('friendListBox').classList.add('hidden');
-            
-            document.getElementById('displayUsername').textContent = user.username;
-            document.getElementById('displayEmail').textContent = user.email;
-            document.getElementById('displayId').textContent = user.id;
-            document.getElementById('displayCreatedAt').textContent = `注册于 ${new Date(user.created_at).toLocaleString('zh-CN')}`;
-        }
-
         function backToUserInfo() {
             document.getElementById('userInfo').classList.remove('hidden');
             document.getElementById('friendListBox').classList.add('hidden');
@@ -591,8 +579,8 @@
                 return;
             }
 
-            if (password.length < 6) {
-                showMessage('密码至少需要6位', 'error');
+            if (password.length < 8) {
+                showMessage('密码至少需要8位', 'error');
                 return;
             }
 
@@ -612,14 +600,6 @@
                 }
 
                 if (data.user) {
-                    // 同步用户数据到 profiles 表
-                    await client
-                        .from('profiles')
-                        .insert([{
-                            id: data.user.id,
-                            username: username
-                        }]);
-                    
                     showMessage('注册成功！请查收验证邮件');
                     document.getElementById('regUsername').value = '';
                     document.getElementById('regEmail').value = '';
