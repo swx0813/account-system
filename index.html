@@ -4,8 +4,191 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>账号系统</title>
-    <script src="error-monitor.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.min.js"></script>
+    <script>
+window.errorLog = [];
+window.warningLog = [];
+window.MAX_LOG_ITEMS = 100;
+
+function addError(error) {
+    if (window.errorLog.length >= window.MAX_LOG_ITEMS) {
+        window.errorLog.shift();
+    }
+    window.errorLog.push(error);
+    requestAnimationFrame(updateErrorDisplay);
+}
+
+function addWarning(warning) {
+    if (window.warningLog.length >= window.MAX_LOG_ITEMS) {
+        window.warningLog.shift();
+    }
+    window.warningLog.push(warning);
+    requestAnimationFrame(updateWarningDisplay);
+}
+
+function updateErrorDisplay() {
+    const counter = document.getElementById('errorCount');
+    const counterBox = document.getElementById('errorCounter');
+    if (counter && counterBox) {
+        const count = window.errorLog.length;
+        counter.textContent = count;
+        if (count > 0) {
+            counterBox.style.background = '#fee2e2';
+            counterBox.style.color = '#dc2626';
+        } else {
+            counterBox.style.background = '#f3f4f6';
+            counterBox.style.color = '#6b7280';
+        }
+    }
+}
+
+function updateWarningDisplay() {
+    const counter = document.getElementById('warningCount');
+    const counterBox = document.getElementById('warningCounter');
+    if (counter && counterBox) {
+        const count = window.warningLog.length;
+        counter.textContent = count;
+        if (count > 0) {
+            counterBox.style.background = '#FEF6D5';
+            counterBox.style.color = '#92400e';
+        } else {
+            counterBox.style.background = '#f3f4f6';
+            counterBox.style.color = '#6b7280';
+        }
+    }
+}
+
+window.onerror = function(msg, url, lineNo, columnNo, error) {
+    addError({
+        type: '全局错误',
+        message: msg,
+        source: url + ':' + lineNo + ':' + columnNo,
+        stack: error?.stack || '',
+        time: new Date().toLocaleString('zh-CN')
+    });
+    return false;
+};
+
+window.addEventListener('unhandledrejection', function(event) {
+    addError({
+        type: 'Promise错误',
+        message: event.reason?.message || String(event.reason),
+        source: event.reason?.stack || '',
+        stack: '',
+        time: new Date().toLocaleString('zh-CN')
+    });
+});
+
+window.addEventListener('error', function(event) {
+    if (event.target && (event.target.tagName === 'IMG' || event.target.tagName === 'SCRIPT' || event.target.tagName === 'LINK')) {
+        addError({
+            type: '资源加载错误',
+            message: event.target.tagName + ' 加载失败: ' + (event.target.src || event.target.href),
+            source: '',
+            stack: '',
+            time: new Date().toLocaleString('zh-CN')
+        });
+    }
+}, true);
+
+function applyConsoleOverrides() {
+    if (window._consoleOverridden) return;
+    window._consoleOverridden = true;
+    
+    window._originalConsoleError = console.error;
+    console.error = function(...args) {
+        window._originalConsoleError.apply(console, args);
+        const errorMsg = args.map(arg => {
+            if (typeof arg === 'object') {
+                try { return JSON.stringify(arg); }
+                catch(e) { return String(arg); }
+            }
+            return String(arg);
+        }).join(' ');
+        if (!errorMsg.includes('talwindcss') && !errorMsg.includes('Invalid API key')) {
+            addError({
+                type: 'Console错误',
+                message: errorMsg,
+                source: '',
+                stack: '',
+                time: new Date().toLocaleString('zh-CN')
+            });
+        }
+    };
+    
+    window._originalConsoleWarn = console.warn;
+    console.warn = function(...args) {
+        window._originalConsoleWarn.apply(console, args);
+        const warnMsg = args.map(arg => {
+            if (typeof arg === 'object') {
+                try { return JSON.stringify(arg); }
+                catch(e) { return String(arg); }
+            }
+            return String(arg);
+        }).join(' ');
+        if (!warnMsg.includes('talwindcss') && 
+            !warnMsg.includes('swal2') &&
+            !warnMsg.includes('Multiple GoTrueClient')) {
+            addWarning({
+                type: 'Console警告',
+                message: warnMsg,
+                source: '',
+                stack: '',
+                time: new Date().toLocaleString('zh-CN')
+            });
+        }
+    };
+}
+
+function applyFetchOverride() {
+    if (window._fetchOverridden) return;
+    window._fetchOverridden = true;
+    
+    window._originalFetch = window.fetch;
+    window.fetch = function(...args) {
+        const url = args[0]?.url || args[0] || '';
+        return window._originalFetch.apply(this, args).then(response => {
+            if (!response.ok) {
+                console.log('Fetch错误调试:', response.status, url);
+                if (url.includes('/auth/') && (response.status === 401 || response.status === 400)) {
+                    console.log('认证请求失败（已过滤）:', response.status);
+                } else if (!url.includes('talwindcss.com')) {
+                    addError({
+                        type: 'HTTP错误',
+                        message: `HTTP ${response.status}: ${response.statusText}`,
+                        source: url,
+                        stack: '',
+                        time: new Date().toLocaleString('zh-CN')
+                    });
+                }
+            }
+            return response;
+        }).catch(error => {
+            console.log('Fetch异常调试:', error.message, url);
+            if (error.message && error.message.includes('Failed to fetch') && !url.includes('talwindcss.com')) {
+                addError({
+                    type: '网络请求异常',
+                    message: error.message || String(error),
+                    source: url,
+                    stack: error.stack || '',
+                    time: new Date().toLocaleString('zh-CN')
+                });
+            }
+            throw error;
+        });
+    };
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    applyConsoleOverrides();
+    applyFetchOverride();
+});
+
+setInterval(function() {
+    updateErrorDisplay();
+    updateWarningDisplay();
+}, 1000);
+    </script>
+    <script src="supabase.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         :root {
@@ -229,16 +412,6 @@
     </style>
 </head>
 <body class="flex items-center justify-center p-4 relative">
-    <!-- 报错计数显示（纯文本，非按钮） -->
-    <div id="errorCounter" class="fixed top-4 left-4 bg-gray-100 text-gray-600 px-3 py-1 rounded-lg text-sm font-medium z-50">
-        当前报错：<span id="errorCount">0</span>
-    </div>
-
-    <!-- 警告计数显示（纯文本，非按钮） -->
-    <div id="warningCounter" class="fixed top-14 left-4 bg-gray-100 text-gray-600 px-3 py-1 rounded-lg text-sm font-medium z-50">
-        当前警告：<span id="warningCount">0</span>
-    </div>
-
     <!-- 设置按钮 -->
     <button onclick="showSettings()" class="fixed top-4 right-4 p-2 rounded-full hover:bg-gray-100 transition-colors z-40" title="设置">
         <img src="https://i.ibb.co/bjX7yNKr/image.png" alt="设置" class="w-6 h-6">
@@ -400,7 +573,7 @@
 
         async function initApp() {
             const supabaseUrl = 'https://zixbubwmrhaivpulgwti.supabase.co';
-            const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InppeGJ1YndtcmhhaXZwdWxnd3RpIiwiYWlkIjoiYm5iM240c2VwY2Y0dnZqbWIyYnZ0IiwiaWF0IjoxNzE3NjU2NjI0LCJleHAiOjIwMzMyMzI2MjR9._vWWc_cmdVBgORj4lIhpeaQ_vDgvI-l2';
+            const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InppeGJ1YndtcmhhaXZwdWxnd3RpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEwOTQ3MDcsImV4cCI6MjA5NjY3MDcwN30.mnV-UApDLrHfwdUFQT7IClV7t4uJRmrAFnR6dhXUnRo';
             
             if (!window.supabase) {
                 console.log('Waiting for supabase to load...');
@@ -657,9 +830,11 @@
             }
 
             try {
+                console.log('登录调试 - 输入:', input);
                 let email = input;
                 
                 if (!input.includes('@')) {
+                    console.log('登录调试 - 按用户名查询:', input);
                     const { data: profiles, error: profileError } = await client
                         .from('profiles')
                         .select('id, email')
@@ -667,7 +842,9 @@
                         .single();
                     
                     if (profileError) {
-                        throw profileError;
+                        console.warn('查询用户失败:', profileError);
+                        showMessage('查询用户失败，请检查网络或稍后重试', 'error');
+                        return;
                     }
                     
                     if (!profiles) {
@@ -676,28 +853,57 @@
                     }
                     
                     if (!profiles.email) {
-                        showMessage('该用户未绑定邮箱', 'error');
+                        showMessage('该用户未绑定邮箱，请使用其他方式登录', 'error');
                         return;
                     }
                     
                     email = profiles.email;
+                    console.log('登录调试 - 查询到邮箱:', email);
                 }
 
+                console.log('登录调试 - 调用signInWithPassword:', email);
                 const { data, error } = await client.auth.signInWithPassword({
                     email: email,
                     password: password
                 });
 
+                console.log('登录调试 - 返回结果:', { data, error });
+
                 if (error) {
-                    throw error;
+                    console.error('登录调试 - 错误详情:', error);
+                    if (error.message.includes('Invalid login credentials')) {
+                        showMessage('邮箱或密码错误', 'error');
+                    } else if (error.message.includes('Email not confirmed')) {
+                        showMessage('邮箱尚未验证，请先验证邮箱', 'error');
+                    } else if (error.message.includes('User not found')) {
+                        showMessage('用户不存在', 'error');
+                    } else {
+                        showMessage('登录失败：' + error.message, 'error');
+                    }
+                    return;
+                }
+
+                if (!data?.user) {
+                    showMessage('登录失败，未获取到用户信息', 'error');
+                    return;
                 }
 
                 showMessage('登录成功！');
                 updateUserInfo(data.user);
 
             } catch (err) {
-                console.error('登录失败:', err);
-                showMessage('登录失败，请重试', 'error');
+                console.error('登录失败（catch）:', err);
+                if (err.message && typeof err.message === 'string') {
+                    if (err.message.includes('Invalid login credentials')) {
+                        showMessage('邮箱或密码错误', 'error');
+                    } else if (err.message.includes('Email not confirmed')) {
+                        showMessage('邮箱尚未验证', 'error');
+                    } else {
+                        showMessage('登录失败：' + err.message, 'error');
+                    }
+                } else {
+                    showMessage('登录失败，请检查网络连接', 'error');
+                }
             }
         }
 
