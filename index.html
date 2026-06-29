@@ -104,15 +104,19 @@ function applyConsoleOverrides() {
             }
             return String(arg);
         }).join(' ');
-        if (!errorMsg.includes('talwindcss') && !errorMsg.includes('Invalid API key')) {
-            addError({
-                type: 'Console错误',
-                message: errorMsg,
-                source: '',
-                stack: '',
-                time: new Date().toLocaleString('zh-CN')
-            });
-        }
+        if (!errorMsg.includes('talwindcss') && 
+                !errorMsg.includes('Invalid API key') && 
+                !errorMsg.includes('Invalid login credentials') &&
+                !errorMsg.includes('Email not confirmed') &&
+                !errorMsg.includes('User not found')) {
+                addError({
+                    type: 'Console错误',
+                    message: errorMsg,
+                    source: '',
+                    stack: '',
+                    time: new Date().toLocaleString('zh-CN')
+                });
+            }
     };
     
     window._originalConsoleWarn = console.warn;
@@ -507,6 +511,9 @@ setInterval(function() {
                     <button onclick="showFriendList()" class="w-full py-3 text-white rounded-xl font-semibold btn-hover btn-active transition-all" style="background: linear-gradient(to right, var(--primary-start), var(--primary-end));">
                         查看好友列表
                     </button>
+                    <button onclick="showChangeUsernameModal()" class="w-full py-3 text-blue-600 bg-blue-50 rounded-xl font-semibold btn-hover btn-active transition-all">
+                        修改用户名
+                    </button>
                     <button onclick="handleLogout()" class="w-full py-3 text-white rounded-xl font-semibold btn-active transition-all" style="background-color: #FF0000;">
                         退出登录
                     </button>
@@ -515,6 +522,27 @@ setInterval(function() {
         </div>
 
         <div id="message" class="mt-4 p-3 rounded-xl text-sm text-center hidden"></div>
+
+        <div id="changeUsernameModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+            <div class="bg-white rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl">
+                <h3 class="text-xl font-bold text-gray-800 text-center mb-6">修改用户名</h3>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">新用户名</label>
+                        <input type="text" id="newUsername" class="w-full px-4 py-3 border border-gray-200 rounded-xl input-focus transition-all" placeholder="请输入新用户名（10位）">
+                        <div class="text-right text-xs text-gray-400 mt-1">10位（字母+数字）</div>
+                    </div>
+                    <div class="flex space-x-3">
+                        <button onclick="closeChangeUsernameModal()" class="flex-1 py-3 text-gray-600 bg-gray-100 rounded-xl font-semibold hover:bg-gray-200 transition-all">
+                            取消
+                        </button>
+                        <button onclick="handleChangeUsername()" class="flex-1 py-3 text-white rounded-xl font-semibold btn-hover btn-active transition-all" style="background: linear-gradient(to right, var(--primary-start), var(--primary-end));">
+                            确认修改
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- 好友列表 -->
@@ -622,6 +650,24 @@ setInterval(function() {
             msg.className = `mt-4 p-3 rounded-xl text-sm text-center fade-in ${type === 'error' ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`;
             msg.classList.remove('hidden');
             setTimeout(() => msg.classList.add('hidden'), 3000);
+        }
+
+        function hasConsecutiveChars(str, count) {
+            for (let i = 0; i <= str.length - count; i++) {
+                const substring = str.substring(i, i + count);
+                const firstChar = substring[0];
+                let allSame = true;
+                for (let j = 1; j < count; j++) {
+                    if (substring[j] !== firstChar) {
+                        allSame = false;
+                        break;
+                    }
+                }
+                if (allSame) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         function showLogin() {
@@ -781,12 +827,38 @@ setInterval(function() {
                 return;
             }
 
-            if (password.length < 6) {
-                showMessage('密码至少需要6位', 'error');
+            if (username.length !== 10) {
+                showMessage('用户名必须刚好10位', 'error');
+                return;
+            }
+
+            if (!/^[a-zA-Z0-9]+$/.test(username)) {
+                showMessage('用户名只能包含字母和数字', 'error');
+                return;
+            }
+
+            if (hasConsecutiveChars(username, 4)) {
+                showMessage('用户名不能包含连续4位及以上相同字符', 'error');
+                return;
+            }
+
+            if (password.length < 1 || password.length > 30) {
+                showMessage('密码长度必须在1-30位之间', 'error');
                 return;
             }
 
             try {
+                const { data: existingUser, error: checkError } = await client
+                    .from('profiles')
+                    .select('id')
+                    .eq('username', username)
+                    .single();
+
+                if (!checkError && existingUser) {
+                    showMessage('该用户名已被注册', 'error');
+                    return;
+                }
+
                 const { data, error } = await client.auth.signUp({
                     email: email,
                     password: password,
@@ -798,11 +870,16 @@ setInterval(function() {
                 });
 
                 if (error) {
-                    throw error;
+                    if (error.message && error.message.includes('already registered')) {
+                        showMessage('该邮箱已被注册', 'error');
+                    } else {
+                        throw error;
+                    }
+                    return;
                 }
 
                 if (data.user) {
-                    showMessage('注册成功！请查收验证邮件');
+                    showMessage('注册成功！');
                     document.getElementById('regUsername').value = '';
                     document.getElementById('regEmail').value = '';
                     document.getElementById('regPassword').value = '';
@@ -812,7 +889,11 @@ setInterval(function() {
                 }
             } catch (err) {
                 console.error('注册失败:', err);
-                showMessage(err.message || '注册失败，请重试', 'error');
+                if (err.message && err.message.includes('already registered')) {
+                    showMessage('该邮箱已被注册', 'error');
+                } else {
+                    showMessage(err.message || '注册失败，请重试', 'error');
+                }
             }
         }
 
@@ -929,6 +1010,93 @@ setInterval(function() {
             document.getElementById('displayEmail').textContent = user.email;
             document.getElementById('displayId').textContent = user.id;
             document.getElementById('displayCreatedAt').textContent = `注册于 ${new Date(user.created_at).toLocaleString('zh-CN')}`;
+        }
+
+        function showChangeUsernameModal() {
+            document.getElementById('changeUsernameModal').classList.remove('hidden');
+            document.getElementById('newUsername').value = '';
+        }
+
+        function closeChangeUsernameModal() {
+            document.getElementById('changeUsernameModal').classList.add('hidden');
+        }
+
+        async function handleChangeUsername() {
+            if (!client || !currentUser) {
+                showMessage('请先登录', 'error');
+                return;
+            }
+
+            const newUsername = document.getElementById('newUsername').value.trim();
+
+            if (!newUsername) {
+                showMessage('请输入新用户名', 'error');
+                return;
+            }
+
+            if (newUsername.length !== 10) {
+                showMessage('用户名必须刚好10位', 'error');
+                return;
+            }
+
+            if (!/^[a-zA-Z0-9]+$/.test(newUsername)) {
+                showMessage('用户名只能包含字母和数字', 'error');
+                return;
+            }
+
+            if (hasConsecutiveChars(newUsername, 4)) {
+                showMessage('用户名不能包含连续4位及以上相同字符', 'error');
+                return;
+            }
+
+            if (newUsername === currentUser.username) {
+                showMessage('新用户名与当前用户名相同', 'error');
+                return;
+            }
+
+            try {
+                const { data: existingUser, error: checkError } = await client
+                    .from('profiles')
+                    .select('id')
+                    .eq('username', newUsername)
+                    .single();
+
+                if (!checkError && existingUser) {
+                    showMessage('该用户名已被使用', 'error');
+                    return;
+                }
+
+                const { error: authError } = await client.auth.updateUser({
+                    data: {
+                        username: newUsername
+                    }
+                });
+
+                if (authError) {
+                    throw authError;
+                }
+
+                const { error: profileError } = await client
+                    .from('profiles')
+                    .update({ username: newUsername })
+                    .eq('id', currentUser.id);
+
+                if (profileError) {
+                    console.warn('更新profiles表失败:', profileError);
+                }
+
+                const { data: { user } } = await client.auth.getUser();
+                if (user) {
+                    updateUserInfo(user);
+                }
+
+                showMessage('用户名修改成功！');
+                closeChangeUsernameModal();
+
+            } catch (err) {
+                console.error('修改用户名失败:', err);
+                showMessage(err.message || '修改用户名失败，请重试', 'error');
+            }
         }
 
         async function handleLogout() {
