@@ -512,7 +512,7 @@ setInterval(function() {
                         查看好友列表
                     </button>
                     <button onclick="showChangeUsernameModal()" class="w-full py-3 text-blue-600 bg-blue-50 rounded-xl font-semibold btn-hover btn-active transition-all">
-                        修改用户名
+                        修改ID
                     </button>
                     <button onclick="handleLogout()" class="w-full py-3 text-white rounded-xl font-semibold btn-active transition-all" style="background-color: #FF0000;">
                         退出登录
@@ -525,11 +525,11 @@ setInterval(function() {
 
         <div id="changeUsernameModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
             <div class="bg-white rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl">
-                <h3 class="text-xl font-bold text-gray-800 text-center mb-6">修改用户名</h3>
+                <h3 class="text-xl font-bold text-gray-800 text-center mb-6">修改ID</h3>
                 <div class="space-y-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">新用户名</label>
-                        <input type="text" id="newUsername" class="w-full px-4 py-3 border border-gray-200 rounded-xl input-focus transition-all" placeholder="请输入新用户名（10位）">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">新ID</label>
+                        <input type="text" id="newUsername" class="w-full px-4 py-3 border border-gray-200 rounded-xl input-focus transition-all" placeholder="请输入新ID（10位）">
                         <div class="text-right text-xs text-gray-400 mt-1">10位（字母+数字）</div>
                     </div>
                     <div class="flex space-x-3">
@@ -581,7 +581,7 @@ setInterval(function() {
                 </div>
                 <div class="flex justify-between items-center py-2 border-b border-gray-100">
                     <span class="text-gray-600">版本</span>
-                    <span class="text-gray-400 text-sm">1.0.0</span>
+                    <span class="text-gray-400 text-sm">1.1.0</span>
                 </div>
                 <div class="flex justify-between items-center py-2 border-b border-gray-100">
                     <span class="text-gray-600">清除缓存</span>
@@ -1030,27 +1030,27 @@ setInterval(function() {
             const newUsername = document.getElementById('newUsername').value.trim();
 
             if (!newUsername) {
-                showMessage('请输入新用户名', 'error');
+                showMessage('请输入新ID', 'error');
                 return;
             }
 
             if (newUsername.length !== 10) {
-                showMessage('用户名必须刚好10位', 'error');
+                showMessage('ID必须刚好10位', 'error');
                 return;
             }
 
             if (!/^[a-zA-Z0-9]+$/.test(newUsername)) {
-                showMessage('用户名只能包含字母和数字', 'error');
+                showMessage('ID只能包含字母和数字', 'error');
                 return;
             }
 
             if (hasConsecutiveChars(newUsername, 4)) {
-                showMessage('用户名不能包含连续4位及以上相同字符', 'error');
+                showMessage('ID不能包含连续4位及以上相同字符', 'error');
                 return;
             }
 
             if (newUsername === currentUser.username) {
-                showMessage('新用户名与当前用户名相同', 'error');
+                showMessage('新ID与当前ID相同', 'error');
                 return;
             }
 
@@ -1062,8 +1062,25 @@ setInterval(function() {
                     .single();
 
                 if (!checkError && existingUser) {
-                    showMessage('该用户名已被使用', 'error');
+                    showMessage('该ID已被使用', 'error');
                     return;
+                }
+
+                const { data: userProfile, error: profileCheckError } = await client
+                    .from('profiles')
+                    .select('last_id_change')
+                    .eq('id', currentUser.id)
+                    .single();
+
+                if (!profileCheckError && userProfile?.last_id_change) {
+                    const lastChangeTime = new Date(userProfile.last_id_change);
+                    const now = new Date();
+                    const daysDiff = (now - lastChangeTime) / (1000 * 60 * 60 * 24);
+                    if (daysDiff < 7) {
+                        const remainingDays = Math.ceil(7 - daysDiff);
+                        showMessage(`每7天只能修改1次ID，还需等待${remainingDays}天`, 'error');
+                        return;
+                    }
                 }
 
                 const { error: authError } = await client.auth.updateUser({
@@ -1076,9 +1093,13 @@ setInterval(function() {
                     throw authError;
                 }
 
+                const now = new Date().toISOString();
                 const { error: profileError } = await client
                     .from('profiles')
-                    .update({ username: newUsername })
+                    .update({ 
+                        username: newUsername,
+                        last_id_change: now
+                    })
                     .eq('id', currentUser.id);
 
                 if (profileError) {
@@ -1090,12 +1111,12 @@ setInterval(function() {
                     updateUserInfo(user);
                 }
 
-                showMessage('用户名修改成功！');
+                showMessage('ID修改成功！');
                 closeChangeUsernameModal();
 
             } catch (err) {
-                console.error('修改用户名失败:', err);
-                showMessage(err.message || '修改用户名失败，请重试', 'error');
+                console.error('修改ID失败:', err);
+                showMessage(err.message || '修改ID失败，请重试', 'error');
             }
         }
 
